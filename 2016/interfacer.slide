@@ -1,0 +1,133 @@
+interfacer
+Because interfaces rock!
+20 Jan 2016
+
+Daniel Martí
+https://mvdan.cc
+mvdan@mvdan.cc
+https://github.com/mvdan
+
+* Who is this guy?
+ 
+- Student at UPC
+- Developer at F-Droid
+- Summer 2015 intern at Google MTV for Kubernetes
+- Go, C, Python, Java
+- Very opinionated
+ 
+* Interfaces (in Go) are awesome
+
+- Set of methods
+- Implicit implements
+- Very useful for mocking
+- The Unix™ way - everything is a file!
+
+* Example
+
+	func ProcessInput(f *os.File) error {
+		b := make([]byte, 64)
+		if _, err := f.Read(b); err != nil {
+			return err
+		}
+		// process b
+		return nil
+	}
+
+* Why so specific?
+
+- Package users can only provide files
+- Any mocking needs to mock an entire file
+- Plain bad typing, to be honest
+
+* Example (fixed)
+
+	func ProcessInput(r io.Reader) error {
+		b := make([]byte, 64)
+		if _, err := r.Read(b); err != nil {
+			return err
+		}
+		// process b
+		return nil
+	}
+
+* Interface happiness
+
+- Anything one can read from can be passed as argument
+- Files, buffered strings, network sockets, pipes...
+- Very easy mocking and unit testing
+- Actually correct typing, no grumpy engineers
+
+* In comes interfacer
+
+- https://github.com/mvdan/interfacer
+
+	func ProcessInput(f *os.File) error {
+		b := make([]byte, 64)
+		if _, err := f.Read(b); err != nil {
+			return err
+		}
+		// process b
+		return nil
+	}
+
+And once run...
+
+	$ interfacer ./...
+	foo.go:10:19: f can be io.Reader
+
+* Workflow (1)
+
+- Grabs interface types from the std and the given packages
+
+	"Error() string":                           "error",
+	"Close() error":                            "io.Closer",
+	"Close() error; Read([]byte) (int, error)": "io.ReadCloser",
+	"Read([]byte) (int, error)":                "io.Reader",
+	[...]
+
+- Also grabs them from the given packages
+
+* Workflow (2)
+
+- Discards func signatures one may implement
+
+	"(go/ast.Node) go/ast.Visitor":                 "go/ast.Visitor.Visit",
+	"(net/http.ResponseWriter, *net/http.Request)": "net/http.HandlerFunc",
+	"(string, os.FileInfo, error) error":           "path/filepath.WalkFunc",
+	[...]
+
+- For example, this function is properly typed:
+
+	func HandleRequest(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte{"hello!"})
+	}
+
+- It can't be `io.Writer`!
+
+* Workflow (3)
+
+- Walks the source code
+- Finds declared functions and notes their parameter usage
+- What methods are called on each parameter?
+- What explicit types is each parameter assigned to?
+- What explicit types is each parameter passed as?
+- Can each of the parameters be an interface at all?
+
+	foo.field
+	foo + 4
+	foo > 0
+	foo[2]
+
+* Workflow (4)
+
+- We take the parameters that can be interfaces
+- Look for a matching interface
+- Recommend that interface unless it's already used
+
+Remember to discard funcs that may be implementing an interface or
+function signature!
+
+* Future work
+
+- Not using interfaces on purpose
+- Suggesting new interfaces
