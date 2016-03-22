@@ -1,20 +1,12 @@
 interfacer
 Because interfaces rock!
-20 Jan 2016
+22 Mar 2016
 
 Daniel Martí
 https://mvdan.cc
 mvdan@mvdan.cc
 https://github.com/mvdan
 
-* Who is this guy?
- 
-- Student at UPC
-- Developer at F-Droid
-- Summer 2015 intern at Google MTV for Kubernetes
-- Go, C, Python, Java
-- Very opinionated
- 
 * Interfaces (in Go) are awesome
 
 - Set of methods
@@ -108,10 +100,11 @@ And once run...
 
 - Walks the source code
 - Finds declared functions and notes their parameter usage
-- What methods are called on each parameter?
-- What explicit types is each parameter assigned to?
-- What explicit types is each parameter passed as?
-- Can each of the parameters be an interface at all?
+
+What methods are called on each parameter?
+What explicit types is each parameter assigned to?
+What explicit types is each parameter passed as?
+Can each of the parameters be an interface at all?
 
 	foo.field
 	foo + 4
@@ -127,7 +120,26 @@ And once run...
 Remember to discard funcs that may be implementing an interface or
 function signature!
 
+* Recent work
+
+- Treat grouped parameters atomically (all or none)
+
+	// Do not recommend io.Reader!
+	func Transfer(from, to SomeStruct) {
+		b := make([]byte, 10)
+		from.Read(b)
+		to.SomeOtherMethod(b)
+	}
+
+- Notice when funcs specify a type
+
+	// Do not recommend io.Writer!
+	func WriteToSomeStruct(s SomeStruct) {
+		b := make([]byte, 10)
+		s.Write(b)
+	}
+
 * Future work
 
-- Not using interfaces on purpose
-- Suggesting new interfaces
+- More testing!
+- Suggesting new interfaces?
