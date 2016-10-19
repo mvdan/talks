@@ -1,0 +1,120 @@
+Parsers in Go
+26 Apr 2016
+
+Daniel Martí
+https://mvdan.cc
+mvdan@mvdan.cc
+https://github.com/mvdan
+
+* Parser generators
+
+- Grammar as input
+- Generated program
+- yacc, bison, etc
+
+	if_clause : IF expr THEN stmts FI ;
+
+* Recursive descent parsers
+
+- Written by hand
+- No formal grammar definition used
+- Use recursion (stack) to define/satisfy grammar
+
+	func if() {
+		want(IF)
+		expression()
+		want(THEN)
+		statements()
+		want(FI)
+	}
+
+* Worth writing by hand?
+
+Pros:
+
+- Human-readable and hackable code
+- One less tool to learn
+- Easier to give better error messages
+
+Cons:
+
+- Incredibly easy to screw up
+- Large initial investment of time
+- Can't rely on formal definition of grammar
+
+* Generated code
+
+	switch next {
+	case 32:
+	case 47:
+	case 84:
+	...
+	}
+
+.image state-machine.png
+
+* Better error messages
+
+	echo -n "for i" | dash
+	1: Syntax error: end of file unexpected (expecting "do")
+	echo -n "foo(bar)" | dash
+	1: Syntax error: word unexpected (expecting ")")
+
+versus...
+
+	echo -n "for i" | shfmt
+	1:6: "for foo" must be followed by "in", ; or a newline
+	echo -n "foo(bar)" | shfmt
+	1:5: functions must start like "foo()"
+
+* In comes Russ Cox
+
+.link http://research.swtch.com/yyerror
+
+- Find a bad (mechanical) error message
+- Note down current state and input token/byte
+- Come up with a better error message
+- Write it into the parser
+- Repeat
+
+So sane error messages are possible and sort of easy in generated code
+after all.
+
+* Avoiding pitfalls with Go tools
+
+A parser is incredibly easy to mess up. Thankfully, we have tools:
+
+- Code coverage
+- TDD
+- go-fuzz
+- (more?)
+
+* Why Go moved to a hand-written parser
+
+- They can now hack on the parser at will
+- One less build dependency
+- Still easier to give better error messages
+
+But most importantly...
+
+- Globals! Parser generators tend to abuse global variables for state.
+
+This was (is?) keeping the Go compiler from being able to parse multiple
+files concurrently.
+
+* Proof of concept
+
+.link https://github.com/mvdan/sh
+
+- 400 commits, 4 months of weekend work
+- 1300 lines of code
+- fully POSIX compliant (I think?)
+
+* Let's play a game
+
+	foo; ;
+	echo if
+	{foo
+	foo & bar
+	if { foo; } then; fi
+	foo() bar
