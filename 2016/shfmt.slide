@@ -1,0 +1,122 @@
+Writing a Bash parser and formatter in Go
+19 Oct 2016
+
+Daniel Martí
+https://mvdan.cc
+mvdan@mvdan.cc
+https://github.com/mvdan
+
+* Parser generators
+
+- Grammar as input
+- Generated program
+- yacc, bison, etc
+
+	if_clause : IF expr THEN stmts FI ;
+
+* Recursive descent parsers
+
+- Written by hand
+- No formal grammar definition used
+- Use recursion (stack) to define/satisfy grammar
+
+	func (p *parser) if() {
+		p.want(IF)
+		p.expression()
+		p.want(THEN)
+		p.statements()
+		p.want(FI)
+	}
+
+* Worth writing by hand?
+
+Pros:
+
+- Human-readable and hackable code
+- One less tool to learn
+- Easier to give better error messages
+
+	function foo(bar) { ... }
+
+	1: Syntax error: word unexpected (expecting ")")
+	1:10: functions must start like "foo()"
+
+Cons:
+
+- Incredibly easy to screw up
+- Large initial investment of time
+- Can't rely on formal definition of grammar
+
+* Avoiding pitfalls with Go tools
+
+A parser is incredibly easy to mess up. Thankfully, we have tools:
+
+- Tests
+- Code coverage
+- go-fuzz
+- (more?)
+
+* I want to write my own parser!
+
+- What language for...?
+- I know, Shell!
+
+Chosen because...
+
+- No grammar available (?)
+- No full parser written as a library or independent program
+- Widely used language
+
+First goal: `gofmt` for the shell, `shfmt`
+
+* Result
+
+.link https://github.com/mvdan/sh
+
+- Supports POSIX Shell and Bash
+- parser: 2400 lines of code
+- printer: 1100 lines of code
+- 9 months of intermittent weekend work
+
+	go get github.com/mvdan/sh/cmd/shfmt
+
+If you can find a shell program it can't parse or format properly, let
+me know!
+
+* One shell format to rule them all
+
+Indentation is the only flag
+
+	foo >bar &
+
+	if foo; then
+		echo $(bar)
+	fi
+
+	foo() {
+		bar
+	}
+
+	foo \
+		&& bar \
+		&& more
+
+* But is Bash really a sane language?
+
+	{ foo; }
+
+	{foo; }
+
+	foo() { bar; }
+
+	foo() bar
+
+	foo() { bar; } &
+
+* It gets worse!
+
+	(foo) $(bar) $((1 + 2))
+
+	$((echo foo | bar))
+
+	$((echo foo) | bar)
