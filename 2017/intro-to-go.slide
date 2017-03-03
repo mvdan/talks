@@ -1,0 +1,50 @@
+Why you should hack in Go
+03 Mar 2017
+
+Daniel Martí
+https://mvdan.cc
+https://github.com/mvdan
+
+* Why Go exists
+
+- Simple language
+- Fast compilation
+- Built-in concurrency
+
+* Hello World
+
+.play helloworld.go
+
+* First impressions
+
+.play helloworld.go
+
+- Similar syntax to C/C++/Java
+- UTF-8 out of the box
+- Package-based
+- No semicolons (🙏)
+
+* Really, really simple
+
+- `func`, `if`, `for`, `switch`
+- `type`, `struct`, `interface`
+- `var`, `const`, `map`
+
+Learn 90% of the language in two days!
+
+* Concurrency is hard?
+
+.play helloworld.go
+
+* Who uses Go?
+
+- Docker
+- Google (Kubernetes, ...)
+- Cloudflare
+- Netflix
+- Uber
+- Dropbox
+
+* Let's have some fun
+
+Do any of you know what sleep sort is?
