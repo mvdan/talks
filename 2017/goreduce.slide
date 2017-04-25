@@ -1,0 +1,164 @@
+Reducing Go programs
+25 Apr 2017
+
+Daniel Martí
+https://mvdan.cc
+https://github.com/mvdan
+
+* Reducing a program
+
+.play goreduce1a.go /^func main/,/^}/
+
+can be reduced to
+
+.play goreduce1b.go /^func main/,/^}/
+
+* But why?
+
+.link https://github.com/dvyukov/gosmith
+
+- 50+ compiler bugs, 3 spec bugs
+
+	package p
+
+	var Var3629 = [2]int{}
+	var Var3555 = [0]int{}
+	var Var2673 = [][]int{}
+	var Var2515 = (([...][]func(float64,complex64,error,byte) func([][]float64,[0]interface {  Method2486 (complex64,complex64) (interface{},uint,byte,string)
+	},uint,map[error]complex64) [2][][]*[2]chan int{[]func(float64,complex64,error,byte) func([][]float64,[0]interface {  Method2486 (complex64,complex64) (interface{},uint,byte,string)
+	},uint,map[error]complex64) [2][][]*[2]chan int{},[]func(float64,complex64,error,byte) func([][]float64,[0]interface {  Method2486 (complex64,complex64) (interface{},uint,byte,string)
+	},uint,map[error]complex64) [2][][]*[2]chan int{}})[(((func(error,uintptr,chan [1]bool,float32) struct { Field2544 int
+	})(nil))(error(nil),uintptr(0),make(chan [1]bool ),float32(1.0))).Field2544])[((Var2673)[(int)(((((*((*((*((([][0]***[0][1][1]int16{})[(Var3555)[((struct { Field3609 int
+	}{})).Field3609]])[((func(int16) int)(nil))(int16(1))])))))))[(<- make(chan int ,1))])[(((([][1][1]int{})[(<- make(chan int ,1))])[(Var3629)[(make(map[[1]bool]int ,1))[[1]bool{}]]])[0]) + (1)])[(<- make(chan int ))] ,)])[(<- make(chan int ))]](1.0,complex64(1i),error(nil),byte(0))
+
+.link https://github.com/golang/go/issues/13277
+
+- Idea came to exist for C compilers:
+
+.link https://github.com/csmith-project/csmith
+
+* How csmith/gosmith generate programs
+
+- They are language-specific
+
+- They modify ASTs, not bytes (source code)
+
+- Thus, they never make syntax errors
+
+- They run compilers on the programs to search for bugs
+
+- They can be smart and arrive at a crasher faster
+
+.link https://github.com/dvyukov/go-fuzz
+
+* But soon...
+
+From a C compiler bug report:
+
+	(*l_1209) ^= func_2(func_7(g_13, g_13.f0, g_13.f0, 
+	func_14(func_20(l_25, ((*l_29)--), func_32(func_34((((((*l_963) =
+	func_37((safe_unary_minus_func_int32_t_s((
+	safe_rshift_func_uint16_t_u_s((safe_add_func_uint8_t_u_u(func_47(
+	l_25), (safe_mul_func_uint16_t_u_u(((safe_add_func_uint64_t_u_u(((
+	*l_102) = 0xC3DD168C87B4EC18LL), (safe_mul_func_int16_t_s_s((((
+	g_117 = (safe_sub_func_int16_t_s_s(((safe_lshift_func_int16_t_s_u((
+	g_116 = (g_115 = ((*l_112) ^= (((g_76.f1.f1 , g_110[2]) != &g_111) ,
+	0xF5F5L)))), l_25)) || g_76.f1.f1), g_76.f1.f2))) < l_118) >= (-8L)),
+	g_65)))) < l_25), g_13.f0)))), g_76.f1.f3)))), g_119, l_26[1], &g_65))
+	== g_964) == 0x24AE7014CC3713C7LL) | l_25), g_966)), g_415),
+	l_988, g_967, l_118, l_25), l_25), l_118, (*g_676), l_988);
+
+- Manually reducing these is insane.
+
+* How does a human reduce manually?
+
+- Make a change to a program, reducing its size or complexity
+
+- If it no longer reproduces the bug, undo and retry
+
+- Otherwise, keep the change and continue
+
+- Stop when we're happy or bored to death
+
+* And creduce was born
+
+.link https://github.com/csmith-project/creduce
+
+	typedef volatile int vint;
+	vint **depth;
+	int *b;
+	vint **get_depth (void) {
+		return depth;
+	}
+	int fn1 (int inc) {
+		int tmp = 0;
+		if (get_depth() == &b)
+			tmp = inc + **depth;
+		return tmp;
+	} 
+
+Reduced to:
+
+	volatile int **a;
+	int *b;
+	void fn1() {
+		if (a == &b) **a;
+	} 
+
+* So here we are
+
+- Go has a gosmith, but no goreduce
+
+- I seem to have too much free time on my hands
+
+- How hard can it be?
+
+- (surprise: actually hard to get right)
+
+* Simple rules
+
+- Remove a statement: `st1; st2 -> `st1`
+
+- Zero literal values: `"foo" -> ""`
+
+- Bypass if: `if a { b } -> b`
+
+And so on.
+
+* First working example
+
+.play goreduce2a.go /^func main/,/^}/
+
+	goreduce -match 'index out of range' . Crasher
+
+.play goreduce2b.go /^func main/,/^}/
+
+* Pain points
+
+- Had to fork go/ast.Walk (need to modify parent and slices)
+
+- Undoing changes to an AST isn't as easy as it sounds
+
+- Go compiler is much grumpier than C ones
+
+- Calls and imports can have side effects
+
+* Work ahead
+
+.link https://github.com/mvdan/goreduce
+
+- Inline single-use vars
+
+- Inline single-use funcs (args, returns, name clashes... ugh)
+
+- Be lazy like a human (remove half of the statements)
+
+- Avoid changes that make the type system angry
+
+- Be used in the Go project for compiler bug reports
+
+Other open questions:
+
+- Tests are unbearably slow
+
+- Avoid calling 'go'?
