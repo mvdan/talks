@@ -1,5 +1,5 @@
 Reducing Go programs
-25 Apr 2017
+17 Oct 2017
 
 Daniel Martí
 https://mvdan.cc
@@ -146,6 +146,8 @@ And so on.
 * Work ahead
 
 .link https://github.com/mvdan/goreduce
+
+- Constant resolution (even appends!)
 
 - Inline single-use vars
 
