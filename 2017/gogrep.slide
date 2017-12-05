@@ -1,0 +1,263 @@
+Searching Go code - gogrep
+5 Dec 2017
+
+Daniel Martí
+https://mvdan.cc
+mvdan@mvdan.cc
+
+* Go code at different levels
+
+- raw bytes
+- lines
+- lexer tokens
+- syntax tree (AST)
+- syntax tree with type info
+- static single assignment (SSA) form
+
+* Raw bytes
+
+	{
+		[...]
+		if err != nil {
+			return nil, err
+		}
+	}
+
+--
+
+	\tif err != nil {\n\t\treturn nil, err\n\t}\n
+
+* Lines
+
+	"	if err != nil {"
+	"		return nil, err"
+	"	}"
+
+* Lexer tokens
+
+	IF IDENT("err") NEQ IDENT("nil") LBRACE
+	IDENT("return") IDENT("nil") COMMA IDENT("err")
+	RBRACE
+
+* Syntax tree
+
+	IfStmt{
+		Cond: BinaryExpr{
+			X:  Ident{Name: "err"},
+			Op: token.NEQ,
+			Y:  Ident{Name: "nil"},
+		},
+		Body: BlockStmt{List: []Stmt{
+			ReturnStmt{Results: []Expr{
+				Ident{Name: "nil"},
+				Ident{Name: "err"},
+			}},
+		}},
+	}
+
+* With type info
+
+	TypeOf(Ident{Name: "err"}): builtin error
+	TypeOf(Ident{Name: "nil"}): untyped nil
+
+- You can also get where err was declared
+
+* Go code at different levels
+
+- raw bytes
+- lines 🡐 *grep*
+- lexer tokens
+- syntax tree (AST)
+- syntax tree with type info
+- static single assignment (SSA) form
+
+mostly works thanks to gofmt (spaces count!)
+
+* Plaintext
+
+	$ git grep -n 'if err != nil {'
+	load.go:38:             if err != nil {
+	load.go:56:             if err != nil {
+	load.go:116:    if err != nil {
+	main.go:71:     if err != nil {
+	main.go:141:    if err != nil {
+	main.go:146:    if err != nil {
+	main.go:156:    if err != nil {
+	main.go:207:            if err != nil {
+	main.go:324:    if err != nil {
+
+* Complex searches
+
+	if <x> != nil {
+		return [...], <x>
+	}
+
+--
+
+	if $x != nil {
+		return $*_, $x
+	}
+
+Would match all of:
+
+	if err != nil { return err }
+	if err != nil { return nil, err }
+	if err2 != nil { return nil, err2 }
+
+* Demo time!
+
+* Go code at different levels
+
+- raw bytes
+- lines 🡐 *grep*
+- lexer tokens
+- syntax tree (AST)
+- syntax tree with type info 🡐 *gogrep*
+- static single assignment (SSA) form
+
+* Multiple statements
+
+	$*_, $x := $_
+	if $x != nil {
+		return $*_, $x
+	}
+
+--
+
+	gogrep '$*_, err := $_; if err != nil { return $*_, $x }'
+
+* Filtering
+
+What about finding the ones where we panic?
+
+	$*_, $x := $_
+	if $x != nil {
+		// a panic somewhere
+	}
+
+--
+
+	gogrep -x '$*_, err := $_; if err != nil { $*_ }' -g 'panic($*_)'
+
+* Negative filtering
+
+What about finding the ones where we don't return?
+
+	$*_, $x := $_
+	if $x != nil {
+		// a panic somewhere
+	}
+
+--
+
+	gogrep -x '$*_, err := $_; if err != nil { $*_ }' -v 'return $*_'
+
+* Real use case™
+
+- golang/go#18625: compress/flate: Write() causes large and unshrinkable stack growth
+
+	for i, v := range someArray {
+		[...]
+	}
+
+--
+
+	for i, v := range someArray[:] {
+		[...]
+	}
+
+.link https://github.com/mdempsky/rangerdanger
+
+* Real use case™ #2
+
+- Simplify HasPrefix with TrimPrefix
+
+	if strings.HasPrefix(x, s) {
+		x = x[len(s):]
+	}
+
+--
+
+	x = strings.TrimPrefix(x, s)
+
+.link https://staticcheck.io/docs/gosimple#S1017
+
+	gogrep 'if strings.HasPrefix($x, $p) { $x = $x[len($p):] }'
+
+* Aggressive AST matching
+
+- AST vs SSA
+
+	if (a == b) { ... }          |      if a == b { ... }
+	for _ = range x { ... }      |      for range x { ... }
+	_, _ = f()                   |      f()
+	var (a int)                  |      var a int
+	var a int; a = f()           |      a := f()
+
+--
+
+	gogrep '~ var $_ int'
+
+Would find *foo* in all of:
+
+	var foo int
+	var (foo int)
+	var (foo, bar int)
+	var (bar uint; foo int)
+
+* Tradeoffs
+
+	Simple, stupid                                                           Complex
+	--------------------------------------------------------------------------------
+	grep        literal AST matching         gogrep         ???          full linter
+
+- Many commands/operations (range, filter, etc)
+- Combine multiple commands
+- Use type information
+
+- Never reaching custom logic nor arbitrary code
+
+* Code search in PMD
+
+.link https://pmd.github.io/pmd-5.8.1/pmd-java/rules/java/basic.html#CollapsibleIfStatements
+
+	//IfStatement[@Else='false']/Statement
+	 /IfStatement[@Else='false']
+	 |
+	//IfStatement[@Else='false']/Statement
+	 /Block[count(BlockStatement)=1]/BlockStatement
+	  /Statement/IfStatement[@Else='false']
+
+--
+
+	if $_ {
+		if $_ {
+			$*_
+		}
+	}
+
+* Bonus points: gofmt -r
+
+	gofmt -r 'pattern -> replacement'
+
+--
+
+	gofmt -l -w -r 'strings.TrimPrefix(x, s) -> strings.TrimSuffix(x, s)'
+
+- Pattern and replacement can only be expressions
+- Only matches ASTs with variables
+- Cannot compose commands to do complex queries
+
+	gogrep -x 'if strings.HasPrefix($x, $p) { $x = $x[len($p):] }'
+	       -r '$x = strings.TrimPrefix($x, $p)'
+	
+* Open questions
+
+- What commands should be added?
+- There are no "AND" and "OR" commands
+- Allow more custom logic, like:
+  - filter matches containing at least three return statements
+
+--
+
+Can a more powerful and generic tool exist?
