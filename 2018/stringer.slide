@@ -1,0 +1,195 @@
+2018's stringer
+17 Jan 2018
+
+Daniel Martí
+https://mvdan.cc
+mvdan@mvdan.cc
+
+* Quiz time!
+
+	package main
+
+	import (
+		"os"
+		"text/template"
+	)
+
+	func main() {
+		tmpl, _ := template.New("").Parse("{{ range $x := . }}{{ $x }}{{ end }}\n")
+		tmpl.Execute(os.Stdout, map[int]int{1: 2})
+	}
+
+Assuming no errors, what's the output?
+
+- 0
+- 1
+- 2
+- other
+
+* String() for enum-like types
+
+	type Pill int
+
+	const (
+		Placebo Pill = iota
+		Aspirin
+		Ibuprofen
+	)
+
+--
+
+	Placebo.String() == "Placebo"
+	Aspirin.String() == "Aspirin"
+
+* Manually?
+
+	func (p Pill) String() string {
+		switch p {
+		case Placebo:
+			return "Placebo"
+		case Aspirin:
+			return "Aspirin"
+		[...]
+		}
+		// or a map, or an array, or a slice...
+	}
+
+* golang.org/x/tools/cmd/stringer
+
+	$ cat pill.go
+	[...]
+	type Pill int
+
+	const (
+		Placebo Pill = iota
+		Aspirin
+		Ibuprofen
+	)
+	[...]
+	$ stringer -type=Pill
+	$ cat pill_string.go
+	func (p Pill) String() string { ... }
+
+--
+
+	//go:generate stringer -type Pill
+	type Pill int
+
+	$ go generate
+
+* Output example
+
+	const _Pill_name = "PlaceboAspirinIbuprofen"
+
+	var _Pill_index = [...]uint8{0, 7, 14, 23}
+
+	func (i Pill) String() string {
+		if i < 0 || i >= Pill(len(_Pill_index)-1) {
+			return "Pill(" + strconv.FormatInt(int64(i), 10) + ")"
+		}
+		return _Pill_name[_Pill_index[i]:_Pill_index[i+1]]
+	}
+
+- No map, no switch
+- All the data in two static globals (smaller binary)
+- Array, enabling compiler optimizations like removing bounds checks
+- Uses smallest index type (uint8, uint16, uint32...)
+- Has a built-in fallback
+
+* Enhancement #1 - prefix trimming
+
+	type Pill int
+
+	const (
+		PillPlacebo Pill = iota
+		PillAspirin
+		PillIbuprofen
+	)
+
+	$ stringer -type Pill -trimprefix Pill
+
+--
+
+	PillPlacebo.String() == "Placebo"
+	PillAspirin.String() == "Aspirin"
+
+* Enhancement #2 - line comments
+
+	type Token int
+
+	const (
+		Invalid Token = iota
+		Plus  // +
+		Minus // -
+		Star  // *
+	)
+
+	$ stringer -type Token -linecomment
+
+--
+
+	Plus.String() == "+"
+	Minus.String() == "-"
+	Star.String() == "*"
+
+* Enhancement #3 - this is yet another test
+
+	func (i Pill) String() string {
+		if i < 0 || i >= Pill(len(_Pill_index)-1) {
+			return fmt.Sprintf("Pill(%d)", i)
+		}
+		return _Pill_name[_Pill_index[i]:_Pill_index[i+1]]
+	}
+
+--
+
+	func (i Pill) String() string {
+		if i < 0 || i >= Pill(len(_Pill_index)-1) {
+			return "Pill(" + strconv.FormatInt(int64(i), 10) + ")"
+		}
+		return _Pill_name[_Pill_index[i]:_Pill_index[i+1]]
+	}
+
+* The levels of the mighty standard library
+
+	// L0 is the lowest level, core, nearly unavoidable packages.
+	"L0": {"errors", "io", "runtime", "sync", "unsafe", ...},
+
+	// L1 adds simple functions and strings processing,
+	// but not Unicode tables.
+	"L1": {"L0", "math", "sort", "strconv", "unicode/utf8", ...},
+
+	// L2 adds Unicode and strings processing.
+	"L2": {"L1", "bufio", "bytes", "path", "strings", "unicode", ...},
+
+	// L3 adds reflection and some basic utility packages
+	// and interface definitions, but nothing that makes
+	// system calls.
+	"L3": {"L2", "crypto", "encoding/binary", "hash", "image", "reflect", ...},
+
+	// L4 is defined as L3+fmt+log+time, because in general once
+	// you're using L3 packages, use of fmt, log, or time is not a big deal.
+	"L4": {"L3", "fmt", "log", "time"},
+
+	L4 - L1: path/filepath, os/exec, io/ioutil, ...
+
+* Enhancements that perished on the way
+
+Autodetection of prefixes via -autotrimprefix
+
+- Not worth it, as the go:generate comment is written only once
+
+Working with both:
+
+	const (
+		Placebo Pill = iota
+		[...]
+	)
+
+	const (
+		Placebo = Pill(iota)
+		[...]
+	)
+
+- Former is cleaner and has a simpler AST, meaning less stringer code
+- The user only has to rewrite the program once
