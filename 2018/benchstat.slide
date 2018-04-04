@@ -1,0 +1,245 @@
+Optimizations in Go are easy!
+04 Apr 2018
+
+Daniel Martí
+https://mvdan.cc
+mvdan@mvdan.cc
+
+* Quiz time!
+
+	func main() {
+		v := new(int)
+		err = json.Unmarshal([]byte("null"), &v)
+		println(v, err != nil)
+	}
+
+* Quiz time!
+
+	func main() {
+		b := true
+		err := json.Unmarshal([]byte("null"), &b)
+		println(b, err != nil)
+	}
+
+
+* Let's start with memory allocations
+
+	var outputs []foo
+	for _, input := range inputs {
+		outputs = append(outputs, fn(input))
+	)
+
+--
+
+	outputs := make([]foo, 0, len(inputs))
+	for _, input := range inputs {
+		outputs = append(outputs, fn(input))
+	)
+
+* But sometimes it just isn't that simple
+
+	var s1 = "foo"
+	var s2 = "bar"
+
+	func f1() {
+		Sink = s1 + "," + s2
+	}
+
+	func f2() {
+		Sink = fmt.Sprintf("%s,%s", s1, s2)
+	}
+
+
+* Can we measure this?
+
+	func Benchmark1(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			f1()
+		}
+	}
+
+	func Benchmark2(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			f2()
+		}
+	}
+
+---
+
+	$ go test -bench=. -benchmem
+	Benchmark1-4    30000000                54.5 ns/op             8 B/op          1 allocs/op
+	Benchmark2-4    10000000               214 ns/op              40 B/op          3 allocs/op
+
+* Another example
+
+	var n = 200
+
+	func f1() {
+		list := make([]int, 0, n)
+		for i := 0; i < n; i++ {
+			list = append(list, i)
+		}
+	}
+
+	func f2() {
+		list := make([]int, 0, 200)
+		for i := 0; i < n; i++ {
+			list = append(list, i)
+		}
+	}
+
+---
+
+	$ go test -bench=. -benchmem
+	Benchmark1-4     3000000               455 ns/op            1792 B/op          1 allocs/op
+	Benchmark2-4    10000000               174 ns/op               0 B/op          0 allocs/op
+
+* Enter benchcmp
+
+	$ go test -bench=. >old.txt
+	# make changes
+	$ go test -bench=. >new.txt
+
+	$ benchcmp old.txt new.txt
+	benchmark           old ns/op     new ns/op     delta
+	BenchmarkConcat     523           68.6          -86.88%
+
+	benchmark           old allocs    new allocs    delta
+	BenchmarkConcat     3             1             -66.67%
+
+	benchmark           old bytes     new bytes     delta
+	BenchmarkConcat     80            48            -40.00%
+
+* But CPU time isn't as stable as the number of allocs...
+
+	benchmark            old ns/op     new ns/op     delta
+	BenchmarkParse-4     530           520           -1.89%
+
+	benchmark            old ns/op     new ns/op     delta
+	BenchmarkParse-4     530           542           +2.26%
+
+It's not unusual to see a variance of a few percent in real/user time
+measurements.
+
+* Enter benchstat
+
+	$ go test -bench=. >old.txt
+	# make changes
+	$ go test -bench=. >new.txt
+
+	$ benchstat old new
+	name     old time/op  new time/op  delta
+	Parse-4   530ns ± 0%   520ns ± 0%   ~     (p=1.000 n=1+1)
+
+* You need much more data to get reliable results
+
+	$ go test -bench=. -count=5 >old.txt
+	# make changes
+	$ go test -bench=. -count=5 >new.txt
+
+	BenchmarkParse-4           500000             530 ns/op
+	BenchmarkParse-4           500000             534 ns/op
+	BenchmarkParse-4           500000             528 ns/op
+	BenchmarkParse-4           500000             542 ns/op
+	BenchmarkParse-4           500000             536 ns/op
+
+	BenchmarkParse-4           500000             528 ns/op
+	BenchmarkParse-4           500000             524 ns/op
+	BenchmarkParse-4           500000             515 ns/op
+	BenchmarkParse-4           500000             532 ns/op
+	BenchmarkParse-4           500000             526 ns/op
+
+* You need much more data to get reliable results
+
+	$ benchstat old new
+	name     old time/op  new time/op  delta
+	Parse-4   531ns ± 1%   524ns ± 1%   ~     (p=0.200 n=3+3)
+
+	$ benchstat old new
+	name     old time/op  new time/op  delta
+	Parse-4   534ns ± 1%   525ns ± 2%  -1.69%  (p=0.040 n=5+5)
+
+* Let's play with some CPU performance examples
+
+	func f1() {
+		list := make([]int, 0, 4)
+		list = append(list, 123)
+		Sink = list
+	}
+
+	func f2() {
+		list := make([]int, 1, 4)
+		list[0] = 123
+		Sink = list
+	}
+
+	BenchmarkF-4    50000000                34.6 ns/op            32 B/op          1 allocs/op
+
+	BenchmarkF-4    50000000                35.1 ns/op            32 B/op          1 allocs/op
+
+* Results
+
+No peeking!
+
+* Results
+
+	$ benchstat old new
+	name  old time/op    new time/op    delta
+	F-4     34.8ns ± 1%    35.1ns ± 2%   ~     (p=0.143 n=5+5)
+
+	name  old alloc/op   new alloc/op   delta
+	F-4      32.0B ± 0%     32.0B ± 0%   ~     (all equal)
+
+	name  old allocs/op  new allocs/op  delta
+	F-4       1.00 ± 0%      1.00 ± 0%   ~     (all equal)
+
+* One last example
+
+	var Sink int
+	var n = 20
+
+	func f1() {
+		list := make([]int, 0, n)
+		for i := 0; i < n; i++ {
+			list = append(list, i)
+		}
+		for _, x := range list {
+			Sink = x
+		}
+	}
+
+	func f2() {
+		list := make([]int, 0, 64)
+		for i := 0; i < n; i++ {
+			list = append(list, i)
+		}
+		for _, x := range list {
+			Sink = x
+		}
+	}
+
+* Results
+
+No peeking!
+
+* Results
+
+	$ benchstat old new
+	name  old time/op    new time/op    delta
+	F-4     78.8ns ± 1%    37.6ns ± 1%   -52.35%  (p=0.008 n=5+5)
+
+	name  old alloc/op   new alloc/op   delta
+	F-4       160B ± 0%        0B       -100.00%  (p=0.008 n=5+5)
+
+	name  old allocs/op  new allocs/op  delta
+	F-4       1.00 ± 0%      0.00       -100.00%  (p=0.008 n=5+5)
+
+* General advice for better benchstat results
+
+https://github.com/golang/go/issues/23471
+
+- Using an idle machine
+- High `-count` values (10, 20, 30)
+- Using `-benchmem` to get memory info
+- Using `-run=-` or `-run=^$` to avoid wasting time on tests
+- Any more ideas? Please contribute to the issue above!
