@@ -1,5 +1,5 @@
 Searching Go code - gogrep
-5 May 2018
+28 May 2018
 
 Daniel Martí
 https://mvdan.cc
@@ -154,6 +154,22 @@ What about finding the ones where we don't return?
 
 * Real use case™
 
+- Simplify HasPrefix with TrimPrefix
+
+	if strings.HasPrefix(x, s) {
+		x = x[len(s):]
+	}
+
+--
+
+	x = strings.TrimPrefix(x, s)
+
+.link https://staticcheck.io/docs/gosimple#S1017
+
+	gogrep -x 'if strings.HasPrefix($x, $p) { $x = $x[len($p):] }'
+
+* Real use case™ #2
+
 - golang/go#18625: compress/flate: Write() causes large and unshrinkable stack growth
 
 	for i, v := range someArray {
@@ -168,21 +184,7 @@ What about finding the ones where we don't return?
 
 .link https://github.com/mdempsky/rangerdanger
 
-* Real use case™ #2
-
-- Simplify HasPrefix with TrimPrefix
-
-	if strings.HasPrefix(x, s) {
-		x = x[len(s):]
-	}
-
---
-
-	x = strings.TrimPrefix(x, s)
-
-.link https://staticcheck.io/docs/gosimple#S1017
-
-	gogrep 'if strings.HasPrefix($x, $p) { $x = $x[len($p):] }'
+	gogrep -x 'for $_, $_ := range $x { $*_ }' -x '$x' -a 'is(array)'
 
 * Aggressive AST matching
 
