@@ -1,0 +1,45 @@
+Go Contributor Workshop
+20 June 2018
+
+Daniel Martí
+talks.godoc.org/github.com/mvdan/talks/2018/contributor.slide
+
+* "Core" Go
+
+- `go`: compiler, runtime, standard library
+- `tools`: extra tools and tooling packages
+- `crypto`: supplementary cryptography packages
+- `net`: supplementary network packages
+- `build`: continuous build and release infrastructure
+
+Many more: `mobile`, `lint`, `debug`, `blog`, `tour`...
+
+* The state of things
+
+- Gerrit is used for code review
+
+- `build.golang.org` integrates with Gerrit as a CI
+
+- GitHub is used for issue tracking
+
+- GitHub branches are just mirrors
+
+- GitHub PRs kind of work now, but we're not going to use them today
+
+* Terminology
+
+- CLA: contributor license agreement, proof that you are entitled to contribute
+
+- change or CL (changelist): same as a Pull Request, but on Gerrit
+
+- `+2`, `+1`, `-1`, `-2`: levels to approve or reject a CL
+
+* Documentation
+
+- We will follow https://tip.golang.org/doc/contribute.html
+
+- Use the tip version, as it's newer and better
+
+- Highly recommended that you use `go-contrib-init` and `git-codereview`
+
+- `git-codereview` lets you do Gerrit actions, like `git-codereview mail` to upload a CL. Everything else can be plain Git.
