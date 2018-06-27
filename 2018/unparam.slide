@@ -1,0 +1,185 @@
+Unused parameters in Go code
+27 Jun 2018
+
+Daniel Martí
+https://mvdan.cc
+mvdan@mvdan.cc
+
+* Let's define an unused parameter
+
+Sometimes parameters were never needed, or are no longer needed.
+
+	func NewTemplate(name, body, footer string) Template {
+		return Template{name: name, body: body}
+	}
+
+--
+
+Sometimes a parameter should be used but isn't.
+
+	func (t Template) Execute(w io.Writer) error {
+		_, err := fmt.Fprintf(os.Stdout, "%s %s", t.name, t.body)
+		return err
+	}
+
+* Let's write a linter for this!
+
+- Using `x/tools/go/loader` to load the packages and Go files
+- Using `go/ast` to inspect the funcs
+
+Enter our first tricky case:
+
+	func NewTemplate(name, body string) Template {
+		body = sampleBody
+		return Template{name: name, body: body}
+	}
+
+`go/ast` is just the syntax, it has no semantics.
+
+* Let's add go/types
+
+- It knows what definition each identifier relates to
+
+First algorithm in pseudo-Go:
+
+	for _, fn := range allFuncs {
+		for _, param := range fn.Params {
+			used := false
+			for _, node := range fn.NodesRead() {
+				if types.Is(node, param) {
+					used = true
+					break
+				}
+			}
+			if !used {
+				warnf("unused param: %v", param)
+			}
+		}
+	}
+
+* Limitations of go/ast and go/types
+
+- We must manually find if each parametere is used
+- `fn.NodesRead` is extremely complex
+
+Enter our first tricky case, again:
+
+	func NewTemplate(name, body string) Template {
+		body = sampleBody // not a use of the body variable!
+		return Template{name: name, body: body}
+	}
+
+Too many ways to define a variable:
+
+	var (t Template)
+	t.body = someValue
+
+	t := Template{}
+	t.body = someValue
+
+	t := Template{body: someValue}
+
+* We can make it much simpler with x/tools/go/ssa
+
+- Much simpler structure thanks to Single Assignment Form
+- Already knows the "referrers" to every variable
+
+New algorithm in pseudo-Go:
+
+	for _, param := range fn.Params {
+		if len(param.Referrers()) == 0 {
+			warnf("unused param: %v", param)
+		}
+	}
+
+Because of SSA, our first tricky case becomes something like:
+
+	func NewTemplate(name, body string) Template {
+		body2 := sampleBody
+		return Template{name: name, body: body2}
+	}
+
+* Common sources of false positives
+
+Dummy or stub functions:
+
+	func (d devNull) WriteString(s string) error {
+		return nil
+	}
+	func (s storeImpl) CreateFoo(f Foo) error {
+		return fmt.Errorf("unimplemented")
+	}
+
+Public API with compatibility guarantees:
+
+	func NewClient(ctx context.Context, timeout time.Duration) Client {
+		// no longer using timeout, use context.WithTimeout instead
+		return Client{ctx: ctx, ...}
+	}
+
+* Go has more potential for false positives
+
+Funcs that satisfy an interface or func signature:
+
+	func pingHandler(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("pong"))
+	}
+	--
+	os.Expand(s, func(name string) string {
+		return "SameValue"
+	})
+
+- If we blacklist all known interfaces, it's too conservative
+- We need to find how functions may be used and called
+- What about type assertions and reflect?
+- Once again, complex code to search the entire program
+
+* Enter our last package: x/tools/go/callgraph
+
+- Graph where nodes are funcs and edges are calls
+- Multiple algorithms that build a callgraph from SSA
+
+Variance in time cost and accuracy:
+
+- static: only static, direct calls recorded
+- RTA: built dynamically, not very precise
+- CHA: conservative, builds an "implements" chain
+- PTA: most accurate, and by far most expensive
+
+A linter must be conservative and reasonably fast, so let's choose CHA.
+
+* Last version of our program:
+
+`anyStrongCall` will inspect if any of the calls to fn "locks in" its signature.
+
+	if anyStrongCall(graph.Inbound[fn]) {
+		continue
+	}
+	for _, param := range fn.Params {
+		if len(param.Referrers()) == 0 {
+			warnf("unused param: %v", param)
+		}
+	}
+
+Examples of these calls:
+
+	// any func passed as handler cannot change signature
+	func HandleRequest(handler Handler, req Request) {
+		handler(req)
+	}
+
+	// we'd need to change otherFn too, which may not be possible
+	fn(otherFn())
+
+* Summary
+
+- Unused parameters in Go are tricky
+- Use `go/ssa` to inspect each func's code
+- Use `go/callgraph` to find how each func is used
+- Rinse and repeat with lots of tests until it works OK
+
+You can try the end result:
+
+	go get -u mvdan.cc/unparam
+
+Same idea, just with more code to handle endless edge cases.
