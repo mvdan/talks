@@ -1,0 +1,226 @@
+What else is in Go 1.11?
+27 Jun 2018
+
+Daniel Martí
+https://mvdan.cc
+
+* Go 1.11
+
+- WebAssembly and Modules have already been covered.
+
+- Now onto the changes that won't make headlines!
+
+Sources:
+
+.link https://tip.golang.org/doc/go1.11
+.link https://dev.golang.org/release#Go1.11
+.link https://github.com/golang/go/issues?q=is:open+is:issue+milestone:Go1.11
+
+* Ports
+
+Dropped:
+
+- Windows XP and Vista (300+ lines removed)
+
+- OSX 10.9 and earlier (120+ lines removed)
+
+- OpenBSD 6.1 and earlier
+
+Minor additions, like `-race` on `linux/ppc64le` and `-msan` on `linux/arm64`.
+
+`riscv` and `riscv64` reserved as `GOARCH` values reserved for the future.
+
+* Tooling (besides modules)
+
+- Last release to support *GOCACHE=off*
+
+- *go*test* now runs *go*vet* by default
+
+- *go*vet* now requires its input packages to typecheck
+
+- Last release where *godoc* has a command-line interface
+
+* Tooling #2 - x/tools/go/packages
+
+A replacement for `x/tools/go/loader` with several advantages:
+
+- Support for Modules - critical for third party tools
+
+- Support for patterns, like `./...`
+
+- Calls out to *go*list* to find packages
+
+- Support for build systems like Bazel
+
+- Support loading dependencies via `GOCACHE`
+
+* Tooling #3 - gofmt
+
+	var _ = T{
+		F1: 1,
+		F2: 1,
+		VeryLongNameJustBecause: 1,
+		F3: 1,
+	}
+
+The tweaked heuristic now gives us:
+
+	var _ = T{
+		F1:                      1,
+		F2:                      1,
+		VeryLongNameJustBecause: 1,
+		F3:                      1,
+	}
+
+* Tooling #4 - godoc versions for std
+
+.image go1.11_godoc_versions.png _ 900
+
+* Tooling #5 - debugging
+
+- Experimental support for calling Go functions in a debugger
+
+Optimized binaries now include more accurate info, like:
+
+- Variable locations
+
+- Line numbers
+
+- Breakpoint locations
+
+DWARF sections (debugging info) are now compressed by default
+
+* Runtime
+
+- Now uses a sparse heap, so the 512GiB limit is gone
+
+- Kernel calls on macOS and iOS now go through `libSystem.so`
+
+- This improves Go's compatibility with future macOS and iOS versions
+
+* Compiler #1 - indexed export format
+
+- The old format was sequential - entire packages had to be loaded
+
+- The new format is indexed, so the compiler only loads what it needs
+
+- Especially important for large projects and packages
+
+--
+
+	Juju/c=4/l=4        46.3s ± 4%        38.0s ± 4%  -18.06%  (p=0.001 n=7+7)
+	Kubelet/c=4/l=4     48.1s ± 2%        39.0s ± 5%  -18.93%  (p=0.002 n=6+6)
+
+* Compiler #2 - unused type switch variables
+
+- `gccgo` and `go/types` already errored here
+
+- The compiler now does too, for consistency
+
+	func f(v interface{}) {
+		switch x := v.(type) {
+		}
+	}
+
+* Compiler #3 - inlining function calls
+
+- Funcs that call `panic` can now be inlined
+
+`-l=4` makes the inlining more agressive, also enabling mid-stack inlining
+
+- `-l=4` has been tweaked and improved
+
+- However, `-l=4` still makes some programs larger and slower
+
+- The heuristic needs more work for mid-stack inlining to be the default
+
+* Compiler #4 - map clearing idiom
+
+	for k := range m {
+		delete(m, k)
+	}
+
+- Reuses the allocated memory for the map
+
+- Now skips the expensive range when possible
+
+	GoMapClear/Reflexive/1         92.2ns ± 1%  47.1ns ± 2%  -48.89%  (p=0.000 n=9+9)
+	GoMapClear/Reflexive/10         108ns ± 1%    48ns ± 2%  -55.68%  (p=0.000 n=10+10)
+	GoMapClear/Reflexive/100        303ns ± 2%   110ns ± 3%  -63.56%  (p=0.000 n=10+10)
+	GoMapClear/Reflexive/1000      3.58µs ± 3%  1.23µs ± 2%  -65.49%  (p=0.000 n=9+10)
+	GoMapClear/Reflexive/10000     28.2µs ± 3%  10.3µs ± 2%  -63.55%  (p=0.000 n=9+10)
+
+* Compiler #5 - slice extension
+
+	append(s, make([]T, n)...)
+
+- Simpler than manually allocating a new slice and copying
+
+- Avoids an allocation if there's enough capacity
+
+- If a new backing array is needed, avoids clearing memory twice
+
+	ExtendSlice/IntSlice         103ns ± 4%      57ns ± 4%   -44.55%  (p=0.000 n=18+18)
+	ExtendSlice/PointerSlice     155ns ± 3%      77ns ± 3%   -49.93%  (p=0.000 n=20+20)
+	ExtendSlice/NoGrow          50.2ns ± 3%     5.2ns ± 2%   -89.67%  (p=0.000 n=18+18)
+
+* Compiler #6 - prove pass
+
+The prove pass derives facts from code, to be used to delete unnecessary
+branches and bounds checks.
+
+Most importantly, it now recognizes transitive relations:
+
+- Inside *if*n*<*10*{}*, it can prove *n*<*10*
+
+- After *s*:=*make([]int,*20)*, it can prove *len(s)*==*20*
+
+- Globally, *10*<*20*, so *n*<*len(s)*
+
+- *s*:=*make([]int,*20);*if*n*<*10*{*_*=*s[n]*}* can never panic
+
+The bounds check is what panics if the index is out of bounds, so in this case
+it can be removed.
+
+* Standard library highlights #1
+
+Let's begin with some of the most visible changes:
+
+- Added `os.UserCacheDir`; `$HOME/.cache` on most Unix systems
+
+- `os/user` adds a `osusergo` build tag use pure Go without `CGO_ENABLED=0`
+
+- `time` now accepts parsing numeric timezones like `+03`
+
+- `net/http` adds support for CIDR and ports in `NO_PROXY`, like `NO_PROXY=10.0.0.0/8`
+
+- `net/http/httputil.ReverseProxy` gained an `ErrorHandler`
+
+- Some `crypto` funcs now randomly read an extra byte
+
+* Standard library highlights #2
+
+- `text/template` can now modify variables via the `=` token:
+
+	{{ $v := "init" }}
+	{{ if true }}
+		{{ $v = "changed" }}
+	{{ end }}
+	v: {{ $v }} {{/* "changed" */}}<Paste>
+
+- `io/ioutil.TempFile` can now be told where to put the random characters:
+
+	ioutil.TempFile("", "foo-") // /tmp/foo-123456
+	ioutil.TempFile("", "foo-*.txt") // /tmp/foo-123456.txt
+
+* Standard library highlights #3
+
+What about performance?
+
+- Some packages were optimized for `arm64`; especially crypto and byte handling
+
+- Pieces of `math/big` were rewritten to be much faster
+
+- Copying data between TCP connections is faster on Linux via the `splice` syscall
+
+- The mutex profile now includes reader/writer contention for `sync.RWMutex`
