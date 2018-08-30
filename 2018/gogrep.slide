@@ -123,7 +123,20 @@ Would match all of:
 
 --
 
-	gogrep -x '$*_, err := $_; if err != nil { return $*_, $x }'
+	$ gogrep -x '$*_, err := $_; if err != nil { return $*_, $x }'
+	expr_parse.go:20:2: toks, err := m.tokenize([]byte(expr)); if err != nil { return "", nil, fmt.Errorf("cannot tokenize expr: %v", err); }
+	expr_parse.go:64:2: exprStr, offs, err := m.transformSource(expr); if err != nil { return nil, err; }
+	expr_parse.go:296:3: wt, err := m.wildcard(t.pos, next); if err != nil { return nil, err; }
+	expr_parse.go:343:2: toks, err := m.tokenize([]byte(src)); if err != nil { return nil, err; }
+	expr_parse.go:373:3: rxStr, err := strconv.Unquote(t.lit); if err != nil { return nil, fmt.Errorf("%v: %v", t.pos, err); }
+	expr_parse.go:403:3: typeExpr, err := parser.ParseExpr(typeStr); if err != nil { return nil, err; }
+	expr_parse.go:443:2: n, err := strconv.Atoi(s[len(wildPrefix):]); if err != nil { return -1; }
+	load.go:37:3: f, err := parser.ParseFile(l.fset, path, nil, parser.ParseComments); if err != nil { return err; }
+	load.go:55:3: pkg, err := l.ctx.Import(path, l.wd, 0); if err != nil { return err; }
+	main.go:139:2: cmds, paths, err := m.parseCmds(args); if err != nil { return err; }
+	main.go:221:4: n, err := strconv.Atoi(cmd.src); if err != nil { return nil, nil, err; }
+	main.go:227:4: m, err := m.parseAttrs(cmd.src); if err != nil { return nil, nil, fmt.Errorf("cannot parse mods: %v", err); }
+	main.go:233:4: node, err := m.parseExpr(cmd.src); if err != nil { return nil, nil, err; }
 
 * Filtering
 
@@ -136,7 +149,9 @@ What about finding the ones where we panic?
 
 --
 
-	gogrep -x '$*_, err := $_; if err != nil { $*_ }' -g 'panic($*_)'
+	$ gogrep -x '$*_, err := $_; if err != nil { $*_ }' -g 'panic($*_)'
+	match.go:653:3: pkg, err := m.stdImporter.Import(path); if err != nil { panic(fmt.Sprintf("findScope err: %v", err)); }
+	write.go:36:3: f, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC, 0); if err != nil { panic(err); }
 
 * Negative filtering
 
@@ -149,7 +164,12 @@ What about finding the ones where we don't return?
 
 --
 
-	gogrep -x '$*_, err := $_; if err != nil { $*_ }' -v 'return $*_'
+	$ gogrep -x '$*_, err := $_; if err != nil { $*_ }' -v 'return $*_'
+	main.go:63:2: err := m.fromArgs(os.Args[1:]); if err != nil { fmt.Fprintln(os.Stderr, err); os.Exit(1); }
+	match.go:653:3: pkg, err := m.stdImporter.Import(path); if err != nil { panic(fmt.Sprintf("findScope err: %v", err)); }
+	write.go:36:3: f, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC, 0); if err != nil { panic(err); }
+	write_test.go:51:2: dir, err := ioutil.TempDir("", "gogrep-write"); if err != nil { t.Fatal(err); }
+	write_test.go:81:3: gotBs, err := ioutil.ReadFile(path); if err != nil { t.Fatal(err); }
 
 * Real use case™
 
@@ -165,7 +185,7 @@ What about finding the ones where we don't return?
 
 .link https://staticcheck.io/docs/gosimple#S1017
 
-	gogrep -x 'if strings.HasPrefix($x, $p) { $x = $x[len($p):] }'
+	$ gogrep -x 'if strings.HasPrefix($x, $p) { $x = $x[len($p):] }'
 
 * Real use case™ #2
 
@@ -183,7 +203,29 @@ What about finding the ones where we don't return?
 
 .link https://github.com/mdempsky/rangerdanger
 
-	gogrep -x 'for $_, $_ := range $x { $*_ }' -x '$x' -a 'is(array)'
+* Real use case™ #2 cont
+
+	$ gogrep -x 'for $_, $_ := range $x { $*_ }' -x '$x' -a 'is(array)' std | grep -vE '_test|vendor/'
+	archive/tar/reader.go:532:22: blk
+	compress/flate/inflate.go:235:25: h.chunks
+	crypto/elliptic/p224.go:154:20: minimal
+	crypto/elliptic/p256_asm.go:340:20: p.xyz
+	crypto/elliptic/p256_asm.go:341:3: p.xyz
+	crypto/md5/md5.go:193:20: d.s
+	crypto/sha1/sha1.go:229:20: d.h
+	crypto/sha1/sha1.go:249:20: d.h
+	crypto/tls/common.go:605:20: c.SessionTicketKey
+	go/build/gc.go:123:21: [...]string{full, full + ".gox", pkgdir + "lib" + pkg + ".so", ...
+	go/internal/gccgoimporter/importer.go:45:28: [...]string{pkgfullpath, pkgfullpath + ".gox", ...
+	go/internal/gcimporter/gcimporter.go:73:22: pkgExts
+	go/types/stmt.go:800:24: lhs
+	go/types/stmt.go:848:24: lhs
+	go/types/universe.go:75:20: aliases
+	go/types/universe.go:99:20: predeclaredConsts
+	image/gif/writer.go:28:20: log2Lookup
+	image/jpeg/huffman.go:158:21: nCodes
+	image/jpeg/reader.go:727:30: translations
+	image/jpeg/writer.go:205:20: theHuffmanSpec
 
 * Aggressive AST matching
 
