@@ -1,9 +1,8 @@
 Searching Go code - gogrep
-28 May 2018
+30 Aug 2018
 
 Daniel Martí
 https://mvdan.cc
-mvdan@mvdan.cc
 
 * Go code at different levels
 
@@ -124,7 +123,7 @@ Would match all of:
 
 --
 
-	gogrep '$*_, err := $_; if err != nil { return $*_, $x }'
+	gogrep -x '$*_, err := $_; if err != nil { return $*_, $x }'
 
 * Filtering
 
@@ -198,7 +197,7 @@ What about finding the ones where we don't return?
 
 --
 
-	gogrep '~ var $_ int'
+	gogrep -x '~ var $_ int'
 
 Would find *foo* in all of:
 
