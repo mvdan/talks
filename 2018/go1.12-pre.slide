@@ -28,42 +28,42 @@ They tend to be more interesting.
 
 * fmt: print maps in sorted order
 
-https://github.com/golang/go/issues/21095
+.link https://github.com/golang/go/issues/21095
 
 - Easier debugging
 - fmt output is now deterministic
 
 * testing: add -benchtime=100x
 
-https://github.com/golang/go/issues/24735
+.link https://github.com/golang/go/issues/24735
 
 - Run a test N times, instead of for N seconds
 - Useful to compare before/after numbers better
 
 * cmd/godoc: remove CLI support
 
-https://github.com/golang/go/issues/25443
+.link https://github.com/golang/go/issues/25443
 
 - You should now use `go`doc` instead of `godoc`
 - One more step towards bringing the doc tools in sync
 
 * strings: add Builder.Cap method
 
-https://github.com/golang/go/issues/26269
+.link https://github.com/golang/go/issues/26269
 
 - Mirroring bytes.Buffer.Cap
 - Otherwise impossible to tell capacity or free space
 
 * os: add ProcessState.ExitCode method
 
-https://github.com/golang/go/issues/26539
+.link https://github.com/golang/go/issues/26539
 
 - Easier to get a process's exit code
 - No need to type assert to a syscall type
 
 * crypto/rand: warn if blocked 60s+ on a read
 
-https://github.com/golang/go/issues/22614
+.link https://github.com/golang/go/issues/22614
 
 - Otherwise programs might hang with no apparent reason
 - Makes the issue much easier to debug
@@ -74,35 +74,35 @@ Some of these might be pushed back to 1.13.
 
 * cmd/go: record language version to support language transitions
 
-https://github.com/golang/go/issues/28221
+.link https://github.com/golang/go/issues/28221
 
 - Allow changing the Go language progressively
 - Smooth transition for users without 2.0, 3.0, etc
 
 * cmd/go: add a build -static flag
 
-https://github.com/golang/go/issues/26492
+.link https://github.com/golang/go/issues/26492
 
 - Building a fully static binary is *not* trivial
 - Make it trivial forever
 
 * bytes,strings: add ToValidUTF8
 
-https://github.com/golang/go/issues/25805
+.link https://github.com/golang/go/issues/25805
 
 - To remove invalid bytes, devs do `string([]rune(s))`
 - The compiler may get smart enough to make that a no-op
 
 * testing: stream t.Log output as it happens
 
-https://github.com/golang/go/issues/24929
+.link https://github.com/golang/go/issues/24929
 
 - Log messages have to wait until the test finishes
 - Makes slow/hanging tests hard to debug
 
 * runtime: non-cooperative goroutine preemption
 
-https://github.com/golang/go/issues/24543
+.link https://github.com/golang/go/issues/24543
 
 - HUGE deal for large companies
 - Possible for certain code patterns to bully the runtime
@@ -110,7 +110,7 @@ https://github.com/golang/go/issues/24543
 
 * cmd/compile: enable mid-stack inlining
 
-https://github.com/golang/go/issues/19348
+.link https://github.com/golang/go/issues/19348
 
 - Has been shelved every release since 1.9
 - Likely won't make it into 1.12, very tricky
@@ -122,40 +122,40 @@ Randomly picked from what I've seen and found.
 
 * io: add StringWriter interface
 
-https://github.com/golang/go/issues/27946
+.link https://github.com/golang/go/issues/27946
 
 - Lots of copy-paste definitions are no more
 
 * cmd/go: add GOFLAGS environment variable
 
-https://go-review.googlesource.com/c/go/+/126656
+.link https://go-review.googlesource.com/c/go/+/126656
 
 - Easy way to configure executed Go tools
 - Can configure global build flags for a user
 
 * os: add UserHomeDir
 
-https://github.com/golang/go/issues/26463
+.link https://github.com/golang/go/issues/26463
 
 - Using os/user.Current directly is actually bad
 - $HOME should be tried first
 
 * cmd/doc: support printing full documentation
 
-https://github.com/golang/go/issues/25595
+.link https://github.com/golang/go/issues/25595
 
 - Another feature ported over from `godoc`
 
 * math/bits: add extended precision Add, Sub, Mul, Div
 
-https://github.com/golang/go/issues/24813
+.link https://github.com/golang/go/issues/24813
 
 - Multi-word arithmetic now much easier (uint128, etc)
 - Faster than manual code too, thanks to compiler help
 
 * text/template: catch panics during func calls
 
-https://github.com/golang/go/issues/28242
+.link https://github.com/golang/go/issues/28242
 
 - Panics in user code are now returned as errors
 - Simpler to use template, friendlier errors to users
